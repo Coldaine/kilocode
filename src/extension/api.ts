@@ -23,6 +23,7 @@ import { Package } from "../shared/package"
 import { getWorkspacePath } from "../utils/path"
 import { ClineProvider } from "../core/webview/ClineProvider"
 import { openClineInNewTab } from "../activate/registerCommands"
+import { TokenSpeedMonitor } from "../monitors/TokenSpeedMonitor"
 
 export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	private readonly outputChannel: vscode.OutputChannel
@@ -32,18 +33,21 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	private readonly taskMap = new Map<string, ClineProvider>()
 	private readonly log: (...args: unknown[]) => void
 	private logfile?: string
+	public readonly tokenSpeedMonitor?: TokenSpeedMonitor
 
 	constructor(
 		outputChannel: vscode.OutputChannel,
 		provider: ClineProvider,
 		socketPath?: string,
 		enableLogging = false,
+		tokenSpeedMonitor?: TokenSpeedMonitor,
 	) {
 		super()
 
 		this.outputChannel = outputChannel
 		this.sidebarProvider = provider
 		this.context = provider.context
+		this.tokenSpeedMonitor = tokenSpeedMonitor
 
 		if (enableLogging) {
 			this.log = (...args: unknown[]) => {

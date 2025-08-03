@@ -43,6 +43,8 @@ import {
 import { initializeI18n } from "./i18n"
 import { registerGhostProvider } from "./services/ghost" // kilocode_change
 import { TerminalWelcomeService } from "./services/terminal-welcome/TerminalWelcomeService" // kilocode_change
+import { TokenSpeedMonitor } from "./monitors/TokenSpeedMonitor" // kilocode_change
+import { SpeedDetailsViewProvider } from "./views/SpeedDetailsView" // kilocode_change
 
 /**
  * Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -246,7 +248,50 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	await checkAndRunAutoLaunchingTask(context) // kilocode_change
 
-	return new API(outputChannel, provider, socketPath, enableLogging)
+	// Initialize token speed monitor if enabled
+	const speedometerConfig = vscode.workspace.getConfiguration('kilocode.speedometer');
+	let tokenSpeedMonitor: TokenSpeedMonitor | undefined;
+	let speedDetailsProvider: SpeedDetailsViewProvider | undefined;
+	
+	if (speedometerConfig.get('enabled', true)) {
+		tokenSpeedMonitor = new TokenSpeedMonitor();
+		
+		// Register commands
+		context.subscriptions.push(
+			vscode.commands.registerCommand('kilocode.showSpeedDetails', () => {
+				vscode.commands.executeCommand('workbench.view.extension.kilocode');
+				setTimeout(() => {
+					vscode.commands.executeCommand('kilocode.speedDetails.focus');
+				}, 100);
+			}),
+			
+			vscode.commands.registerCommand('kilocode.resetSpeedMetrics', () => {
+				tokenSpeedMonitor?.resetMetrics();
+				vscode.window.showInformationMessage('Speed metrics reset');
+			})
+		);
+		
+		// Register webview provider
+		speedDetailsProvider = new SpeedDetailsViewProvider(
+			context.extensionUri,
+			tokenSpeedMonitor
+		);
+		
+		context.subscriptions.push(
+			vscode.window.registerWebviewViewProvider(
+				'kilocode.speedDetails',
+				speedDetailsProvider
+			)
+		);
+		
+		context.subscriptions.push({
+			dispose: () => {
+				tokenSpeedMonitor?.dispose();
+			}
+		});
+	}
+
+	return new API(outputChannel, provider, socketPath, enableLogging, tokenSpeedMonitor)
 }
 
 // This method is called when your extension is deactivated.

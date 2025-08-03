@@ -62,6 +62,7 @@ import { TerminalRegistry } from "../../integrations/terminal/TerminalRegistry"
 // utils
 import { calculateApiCostAnthropic } from "../../shared/cost"
 import { getWorkspacePath } from "../../utils/path"
+import { countTokens } from "../../utils/countTokens"
 
 // prompts
 import { formatResponse } from "../prompts/responses"
@@ -98,6 +99,7 @@ import { GlobalFileNames } from "../../shared/globalFileNames" // kilocode_chang
 import { ensureLocalKilorulesDirExists } from "../context/instructions/kilo-rules" // kilocode_change
 import { restoreTodoListForTask } from "../tools/updateTodoListTool"
 import { reportExcessiveRecursion, yieldPromise } from "../kilocode"
+import { StreamHandler, ChunkData } from "../../api/StreamHandler"
 
 const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 
@@ -227,6 +229,7 @@ export class Task extends EventEmitter<TaskEvents> {
 	fileContextTracker: FileContextTracker
 	urlContentFetcher: UrlContentFetcher
 	terminalProcess?: RooTerminalProcess
+	streamHandler?: StreamHandler
 
 	// Computer User
 	browserSession: BrowserSession
@@ -1584,6 +1587,27 @@ export class Task extends EventEmitter<TaskEvents> {
 			let assistantMessage = ""
 			let reasoningMessage = ""
 			this.isStreaming = true
+			
+			// Initialize StreamHandler for token speed monitoring if available
+			const provider = this.providerRef.deref()
+			const tokenSpeedMonitor = provider?.context?.extension?.exports?.tokenSpeedMonitor
+			if (tokenSpeedMonitor && !this.streamHandler) {
+				const modelName = this.api.getModel()?.id || 'Unknown Model'
+				this.streamHandler = new StreamHandler(modelName)
+				
+				// Connect StreamHandler events to TokenSpeedMonitor
+				this.streamHandler.on('streamStarted', (modelName) => {
+					tokenSpeedMonitor.startTracking(modelName)
+				})
+				
+				this.streamHandler.on('chunkReceived', (data: ChunkData) => {
+					tokenSpeedMonitor.addTokens(data.tokenCount)
+				})
+				
+				this.streamHandler.on('streamEnded', () => {
+					tokenSpeedMonitor.stopTracking()
+				})
+			}
 
 			try {
 				// kilocode change: use manual iterator instead of for ... of
@@ -1613,6 +1637,27 @@ export class Task extends EventEmitter<TaskEvents> {
 							break
 						case "text": {
 							assistantMessage += chunk.text
+							
+							// Track token speed if StreamHandler is available
+							if (this.streamHandler && chunk.text) {
+								// Start tracking on first text chunk
+								if (!this.streamHandler['hasStarted']) {
+									this.streamHandler['hasStarted'] = true
+									this.streamHandler.emit('streamStarted', this.streamHandler['modelName'])
+								}
+								
+								// Count tokens in chunk using existing utility
+								countTokens([
+									{ type: 'text', text: chunk.text }
+								], { useWorker: false }).then(tokenCount => {
+									this.streamHandler?.emit('chunkReceived', { 
+										text: chunk.text, 
+										tokenCount 
+									} as ChunkData)
+								}).catch(error => {
+									console.error('Error counting tokens for speedometer:', error)
+								})
+							}
 
 							// Parse raw assistant message into content blocks.
 							const prevLength = this.assistantMessageContent.length
@@ -1860,6 +1905,12 @@ export class Task extends EventEmitter<TaskEvents> {
 				}
 			} finally {
 				this.isStreaming = false
+				
+				// Emit stream ended event for token speed monitoring
+				if (this.streamHandler && this.streamHandler['hasStarted']) {
+					this.streamHandler.emit('streamEnded')
+					this.streamHandler['hasStarted'] = false
+				}
 			}
 
 			// kilocode_change: pending upstream pr https://github.com/RooCodeInc/Roo-Code/pull/6122
