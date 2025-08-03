@@ -123,6 +123,15 @@
 					"id": "kilo-code.SidebarProvider",
 					"name": "%views.sidebar.name%"
 				}
+			],
+			"kilocode": [
+				{
+					"id": "kilocode.speedDetails",
+					"name": "Token Speed Metrics",
+					"icon": "$(dashboard)",
+					"contextualTitle": "Real-time token generation performance",
+					"visibility": "collapsed"
+				}
 			]
 		},
 		"commands": [
@@ -289,6 +298,17 @@
 			{
 				"command": "kilo-code.ghost.goToPreviousSuggestion",
 				"title": "%ghost.commands.goToPreviousSuggestion%",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "kilocode.showSpeedDetails",
+				"title": "Show Token Speed Details",
+				"icon": "$(dashboard)",
+				"category": "%configuration.title%"
+			},
+			{
+				"command": "kilocode.resetSpeedMetrics",
+				"title": "Reset Speed Metrics",
 				"category": "%configuration.title%"
 			}
 		],
@@ -563,6 +583,26 @@
 					"type": "boolean",
 					"default": true,
 					"description": "%settings.useAgentRules.description%"
+				},
+				"kilocode.speedometer.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable token generation speed monitoring"
+				},
+				"kilocode.speedometer.position": {
+					"type": "string",
+					"enum": ["left", "right"],
+					"default": "right",
+					"description": "Position of speedometer in status bar (right is recommended)",
+					"enumDescriptions": [
+						"Left side - may interfere with file information",
+						"Right side - recommended position"
+					]
+				},
+				"kilocode.speedometer.showIcon": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show speed-based emoji icons (🐌 🚶 🏃 🚗 🚀)"
 				}
 			}
 		},
