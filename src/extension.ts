@@ -64,6 +64,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel("Kilo-Code")
 	context.subscriptions.push(outputChannel)
 	outputChannel.appendLine(`${Package.name} extension activated - ${JSON.stringify(Package)}`)
+	console.log("[Extension] Kilo Code extension starting...") // kilocode_change
 
 	// Migrate old settings to new
 	await migrateSettings(context, outputChannel)
@@ -249,46 +250,40 @@ export async function activate(context: vscode.ExtensionContext) {
 	await checkAndRunAutoLaunchingTask(context) // kilocode_change
 
 	// Initialize token speed monitor if enabled
-	const speedometerConfig = vscode.workspace.getConfiguration('kilocode.speedometer');
-	let tokenSpeedMonitor: TokenSpeedMonitor | undefined;
-	let speedDetailsProvider: SpeedDetailsViewProvider | undefined;
-	
-	if (speedometerConfig.get('enabled', true)) {
-		tokenSpeedMonitor = new TokenSpeedMonitor();
-		
+	const speedometerConfig = vscode.workspace.getConfiguration("kilocode.speedometer")
+	let tokenSpeedMonitor: TokenSpeedMonitor | undefined
+	let speedDetailsProvider: SpeedDetailsViewProvider | undefined
+
+	if (speedometerConfig.get("enabled", true)) {
+		tokenSpeedMonitor = new TokenSpeedMonitor()
+
 		// Register commands
 		context.subscriptions.push(
-			vscode.commands.registerCommand('kilocode.showSpeedDetails', () => {
-				vscode.commands.executeCommand('workbench.view.extension.kilocode');
+			vscode.commands.registerCommand("kilocode.showSpeedDetails", () => {
+				vscode.commands.executeCommand("workbench.view.extension.kilocode")
 				setTimeout(() => {
-					vscode.commands.executeCommand('kilocode.speedDetails.focus');
-				}, 100);
+					vscode.commands.executeCommand("kilocode.speedDetails.focus")
+				}, 100)
 			}),
-			
-			vscode.commands.registerCommand('kilocode.resetSpeedMetrics', () => {
-				tokenSpeedMonitor?.resetMetrics();
-				vscode.window.showInformationMessage('Speed metrics reset');
-			})
-		);
-		
+
+			vscode.commands.registerCommand("kilocode.resetSpeedMetrics", () => {
+				tokenSpeedMonitor?.resetMetrics()
+				vscode.window.showInformationMessage("Speed metrics reset")
+			}),
+		)
+
 		// Register webview provider
-		speedDetailsProvider = new SpeedDetailsViewProvider(
-			context.extensionUri,
-			tokenSpeedMonitor
-		);
-		
+		speedDetailsProvider = new SpeedDetailsViewProvider(context.extensionUri, tokenSpeedMonitor)
+
 		context.subscriptions.push(
-			vscode.window.registerWebviewViewProvider(
-				'kilocode.speedDetails',
-				speedDetailsProvider
-			)
-		);
-		
+			vscode.window.registerWebviewViewProvider("kilocode.speedDetails", speedDetailsProvider),
+		)
+
 		context.subscriptions.push({
 			dispose: () => {
-				tokenSpeedMonitor?.dispose();
-			}
-		});
+				tokenSpeedMonitor?.dispose()
+			},
+		})
 	}
 
 	return new API(outputChannel, provider, socketPath, enableLogging, tokenSpeedMonitor)
